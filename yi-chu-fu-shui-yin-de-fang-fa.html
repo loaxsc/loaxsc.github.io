@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-tw">
+<head>
+        <meta charset="utf-8" />
+        <title>移除浮水印的方法</title>
+        <link rel="stylesheet" href="/theme/css/main.css" />
+        <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="loaxsc's blog Atom Feed" />
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="/">loaxsc's blog </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="/category/article.html">article</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="/yi-chu-fu-shui-yin-de-fang-fa.html" rel="bookmark"
+           title="Permalink to 移除浮水印的方法">移除浮水印的方法</a></h1>
+    </header>
+
+    <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2018-12-09T00:00:00+08:00">
+                Published: 日 09 十二月 2018
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="/author/loaxsc.html">loaxsc</a>
+        </address>
+<p>In <a href="/category/article.html">article</a>.</p>
+
+</footer><!-- /.post-info -->      <h1>移除 watermark</h1>
+<p>常常在讀電子書時見到頁面中有浮水印，在沒接觸 Imagemagick 前，只會移除那種淡淡的、單色，只要簡單地提高對比度或亮度就可以移除的浮水印</p>
+<p><img alt="簡單的浮水印" src="/img/021.png"></p>
+<p>如果說遇到比較複雜的圖案，就只能默默的接受。在研究使用 Imagemagick 時意外發現兩種移除浮水印的方法，相對簡單的調整對比和亮度而言，可以說是移除的非常漂亮。 第一種方法針對的是在固定位置的浮水印，如果你可以找到用來做浮水印的原始圖片，那固定位置的浮水印是可以漂亮的移除的。第二種方法針對的是彩色的浮水印。電子書內的圖片因為主要的內容是黑白的文字，所以如果遇到彩色的浮水印，知道方法的話也是有辨法移除的。</p>
+<h2>移除固定位置的浮水印</h2>
+<p>移除固定位置浮水印的原理是這樣的，先找到原始做為浮水印的圖案，這很容易，因為電子書中有些浮水印會打在空白處，找到該處把浮水印擷取下即可取得浮水印的原始圖案。擷取時記得把擷取的位置和尺寸記下來，然後就可以編寫 Imagemagick 的指令下去批次把浮水印移除掉。</p>
+<p>拿《數學之美》第一章為例，這本電子書的浮水印在固定位置，而且不是簡單的單色、淡色，無法在不破壞文字的前提下靠調整對比、亮度或曲線來移除它。</p>
+<p><img alt="數學之美的浮水印，雖然位置固定，但是圖案的結構複雜" src="/img/016.png"></p>
+<p>我們先找到空白處的浮水印，擷取並記錄 geometry 資訊。我是用 gimp 來做這個步驟，因為用滑鼠大致選取好範圍後，可以利用方向鍵對選取方塊進行微調選取的尺寸及位置，非常方便</p>
+<p><img alt="gimp 可以用方向鍵微調選取方塊" src="/img/022.png"></p>
+<p>微調完一切就緒後，因為 gimp 導出選取區域至檔案的操作太鎖碎了，我是直接複製到剪貼簿，再利用下面的指令把浮水印導出到檔案</p>
+<div class="highlight"><pre><span></span>xclip -selection clipboard -t image/png -o &amp;gt; wmark.png
+</pre></div>
+
+
+<p>記得要把 geometry 資訊記錄下來，在視窗的左下角的工具選項中可以找到資訊。注意，gimp 的版面中上面是偏移位置，下面是寬度長度，我一開始沒注意到，導致後面的一直不對…</p>
+<p><img alt="gimp 中找到 geometry 資訊" src="/img/023.png"></p>
+<p>其實可以不用在 gimp 介面中找資訊再慢慢打，我在網上搜到將選取方塊的 geometry 資訊複製到剪貼簿的 <a href="copy-selection-coordinates.py">python-fu 腳本</a>，將這個腳本丟到 gimp plugin 資料夾中後，這個腳本會在選單中增加一個項目，再到 gimp 的設定中為該選單項目指定一個熱鍵即可。</p>
+<p><img alt="gimp選單項目" src="/img/024.png"></p>
+<p>在批次移除前先檢查一下頁面圖片的尺寸是否全部一致，打上浮水印的製作者可能不希望別人輕易就把浮水印移除，所以會故意把圖片的尺寸調整的不一致</p>
+<div class="highlight"><pre><span></span>identify page-???.* | cut -d &#39; &#39; -f 1,3 | \
+    sort -n -k 2 | vim -R -c &quot;set nu | nmap q :q&amp;lt;cr&amp;gt;&quot; -
+</pre></div>
+
+
+<p><img alt="檢查圖片尺寸" src="/img/020.png"></p>
+<p>數學之美第一章圖片的尺寸相當一致。</p>
+<p>我們以下面的指令移除打在頁面上的浮水印</p>
+<div class="highlight"><pre><span></span># 移除浮水印的 Code
+ls page-???.png | xargs -I _IMG_ \
+convert _IMG_ -write mpr:src \
+    -crop 291x363+691+1081 +repage -write mpr:src_s \
+    wmark.png -compose difference -composite -threshold 0 -write mpr:mask +delete \
+    mpr:src_s -mask mpr:mask -fill white +opaque white +mask -level 0%,100%,0.7 -write mpr:src_s +delete \
+    mpr:src mpr:src_s -geometry +691+1081 -compose over -composite \
+    ../01wmark/_IMG_
+</pre></div>
+
+
+<p>解釋一下上面的指令做了什麼：將頁面上對應的區塊和浮水印相減，這樣浮水印就被去掉了。可是這種方法會破壞被浮水印覆蓋的文字，所以需要再做進一步的處理。將去掉浮水印的圖案做成遮罩，</p>
+<p><img alt="浮水印消失啦！" src="/img/025.png"></p>
+<h2>移除彩色的浮水印</h2>
+<p>有些電子書上會打上彩色的浮水印，移除的原理其也不難，就抓住一個要點：電子書上的文字通常都是灰階的，因此構成文字的像素 RGB 值差距不大，通常在正負10(0 ~ 255)內，否則肉眼就會察覺出彩度來，這樣只要去檢查頁面中像素 RGB 之間的差值，太大的就替代成白色，就可以把浮水印移除掉了。</p>
+<p><img alt="一個彩水浮水印的例子" src="/img/017.png"></p>
+<p>ImageMagick 移除浮水印的指令</p>
+<div class="highlight"><pre><span></span>convert wmark.png -fx &#39;p.r &amp;gt; 0.692 &amp;amp;&amp;amp; abs(p.r - p.b) &amp;gt; 0.0392 ? white : p&#39; \
+    wmark.png \
+</pre></div>
+
+
+<p><img alt="移除浮水印後的圖案" src="/img/018.png"></p>
+<p>這種方法來移除浮水印會留下很多雜點，還需要進一步的處理</p>
+<div class="highlight"><pre><span></span>convert wmark.png -write mpr:pic -threshold 75% \
+    -define connected-components:area-threshold=6 \
+    -connected-components 4 -threshold 0 -write mpr:mask +delete \
+    mpr:pic -mask mpr:mask -fill white +opaque white wmark.png
+</pre></div>
+
+
+<p><img alt="進一步處理後的圖案" src="/img/019.png"></p>
+<p>很漂亮的移除了</p>
+    </div><!-- /.entry-content -->
+
+  </article>
+</section>
+        <section id="extras" class="body">
+                <div class="blogroll">
+                        <h2>links</h2>
+                        <ul>
+                            <li><a href="http://getpelican.com/">Pelican</a></li>
+                            <li><a href="http://python.org/">Python.org</a></li>
+                            <li><a href="http://jinja.pocoo.org/">Jinja2</a></li>
+                            <li><a href="#">You can modify those links in your config file</a></li>
+                        </ul>
+                </div><!-- /.blogroll -->
+                <div class="social">
+                        <h2>social</h2>
+                        <ul>
+                            <li><a href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">atom feed</a></li>
+
+                            <li><a href="#">You can add links in your config file</a></li>
+                            <li><a href="#">Another social link</a></li>
+                        </ul>
+                </div><!-- /.social -->
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is by <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+</body>
+</html>

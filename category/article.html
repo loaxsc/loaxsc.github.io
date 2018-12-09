@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-tw">
+<head>
+        <meta charset="utf-8" />
+        <title>loaxsc's blog - article</title>
+        <link rel="stylesheet" href="/theme/css/main.css" />
+        <link href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="loaxsc's blog Atom Feed" />
+</head>
+
+<body id="index" class="home">
+        <header id="banner" class="body">
+                <h1><a href="/">loaxsc's blog </a></h1>
+                <nav><ul>
+                    <li class="active"><a href="/category/article.html">article</a></li>
+                </ul></nav>
+        </header><!-- /#banner -->
+
+            <aside id="featured" class="body">
+                <article>
+                    <h1 class="entry-title"><a href="/li-yong-freepic2pic-zhi-zuo-duo-ceng-pdf.html">利用 FreePic2Pic 製作多層 PDF</a></h1>
+<footer class="post-info">
+        <abbr class="published" title="2018-12-09T00:00:00+08:00">
+                Published: 日 09 十二月 2018
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="/author/loaxsc.html">loaxsc</a>
+        </address>
+<p>In <a href="/category/article.html">article</a>.</p>
+
+</footer><!-- /.post-info --><h1>利用 FreePic2Pic 製作多層 PDF</h1>
+<p>在看 FreePic2Pdf 的說明文件時發現 FreePic2Pdf 有作多層 PDF 的功能，這功能使黑白文字混搭彩色插圖成為可能，我忍不任嘗試了一下。</p>
+<p>因為將文字部分轉成黑白圖片一定要放大效果才好，連帶著插圖也要放大。為了避免增加太多檔案體積，用 Imagemagick 放大插圖時採用 -scale 的方式。換句話說就是先用 -resize 把圖片放大一輪，然後找出有插圖的部分，用 -scale 放大後取出插圖，並將座標資料存入 page_with_pic.info 中。</p>
+<p>要用 FreePic2Pdf 做混搭的多層PDF的話，除了要製作FreePic2Pdf.itf這個文件，檔案命名還要符合它的要求。這個環節讓我卡超久，因為還有一個條件在 FreePic2Pdf 說明文件中沒提。它還要求多層頁面必須有一個同名的圖檔，就是說除了 page1.000 page1.001 page1.002...之外，還需要有一個 page1.png 或 page1.jpg 之類的圖檔，否則即使 FreePic2Pdf.itf 中有設定，而且檔案也存在，製作出來的 PDF 還是會缺頁。</p>
+<p>FreePic2Pdf 在製作 PDF 時應該是根據圖檔是否存在判斷有沒有該頁面，然後再配對 FreePic2Pdf.itf 中的設定決定如何處理。原本 FreePic2Pdf 是作者寫來處理 PDG 工具組的一部分，如果說一路跟上來，即使文件中沒註明，其他成員應該也猜得到，可是我是在網路上搜尋製作 PDF 的工具時找到了 FreePic2Pdf 就用了起來，我可沒辨法簡單地猜到。最後弄得沒辨法，是在網路上搜尋 PDG 檔案下來解開，才恍然大悟。</p>
+<p>我覺得編寫 FreePic2Pic.itf 實在太麻煩了，不過我已經累積了方法製作 page_with_pic.info，就想說用 python 寫個腳本把 page_with_pic.info 轉成 FreePic2Pic.itf，順便處理好檔名，以後要用到的話就直接轉換即可。</p>
+<p>腳本如下</p>
+<div class="highlight"><pre><span></span><span class="ch">#! /usr/bin/python3</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">PIL</span> <span class="kn">import</span> <span class="n">Image</span>
+<span class="kn">import</span> <span class="nn">sys</span><span class="o">,</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">re</span><span class="o">,</span> <span class="nn">shutil</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+
+    <span class="n">f_in</span><span class="o">=</span><span class="s1">&#39;page_with_pic.info&#39;</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">f_in</span><span class="p">,</span><span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">txt</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+    <span class="n">pre_im</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">itf</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">txt</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">):</span>
+        <span class="n">im</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;^page-\d{3}&#39;</span><span class="p">,</span> <span class="n">item</span> <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">pre_im</span> <span class="ow">and</span> <span class="n">pre_im</span> <span class="o">!=</span> <span class="n">im</span><span class="p">:</span>
+            <span class="n">itf</span> <span class="o">+=</span> <span class="s1">&#39;{}_000=0,0,{},{}</span><span class="se">\n</span><span class="s1">{}={}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span> <span class="n">pre_im</span><span class="p">,</span> <span class="o">*</span><span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span> <span class="n">pre_im</span> <span class="o">+</span> <span class="s1">&#39;.png&#39;</span> <span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">pre_im</span><span class="p">,</span> <span class="n">count</span> <span class="p">)</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">pre_im</span> <span class="o">==</span> <span class="n">im</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="n">itf</span> <span class="o">+=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;,(\d+)x(\d+)\+(\d+)\+(\d+)&#39;</span><span class="p">,</span> <span class="sa">r</span><span class="s1">&#39;_{:03d}=\3,\4,\1,\2&#39;</span><span class="p">,</span> <span class="n">item</span> <span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span> <span class="n">count</span> <span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="n">pre_im</span> <span class="o">=</span> <span class="n">im</span>
+
+    <span class="n">itf</span> <span class="o">+=</span> <span class="s1">&#39;{}_000={},{},0,0</span><span class="se">\n</span><span class="s1">{}={}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span> <span class="n">pre_im</span><span class="p">,</span> <span class="o">*</span><span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span> <span class="n">pre_im</span> <span class="o">+</span> <span class="s1">&#39;.png&#39;</span> <span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">pre_im</span><span class="p">,</span> <span class="n">count</span> <span class="p">)</span>
+
+    <span class="n">f_out</span> <span class="o">=</span> <span class="s1">&#39;FreePic2Pdf.itf&#39;</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">f_out</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">itf</span><span class="p">)</span>
+
+    <span class="n">iml</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;^(page-\d{3}),(.+)&#39;</span><span class="p">,</span><span class="sa">r</span><span class="s1">&#39;\1_\2.png&#39;</span><span class="p">,</span> <span class="n">txt</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">M</span> <span class="p">)</span>
+
+    <span class="n">pre_im</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">im</span> <span class="ow">in</span> <span class="n">iml</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">):</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">pre_im</span> <span class="o">==</span> <span class="n">im</span> <span class="k">else</span> <span class="mi">1</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span> <span class="s1">&#39;crop-pic/&#39;</span> <span class="o">+</span> <span class="n">im</span><span class="p">,</span> <span class="s1">&#39;{}.{:03d}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;^page-\d{3}&#39;</span><span class="p">,</span> <span class="n">im</span> <span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">count</span> <span class="p">)</span> <span class="p">)</span>
+        <span class="k">if</span> <span class="n">pre_im</span> <span class="o">!=</span> <span class="n">im</span><span class="p">:</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;^page-\d{3}&#39;</span><span class="p">,</span><span class="n">im</span> <span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;.png&#39;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;^page-\d{3}&#39;</span><span class="p">,</span><span class="n">im</span> <span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;.000&#39;</span> <span class="p">)</span>
+
+    <span class="nb">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</pre></div>
+
+
+<p>將圖檔和 FreePic2Pic.itf 準備好後，用 FreePic2Pic 轉出來，效果還不錯，不輸其他的方法</p>
+<p><img alt=" txt2-pic16 的效果圖" src="/img/037.png"></p>
+<p>只是 PDF 的體積沒想像中的小。算了，就是一個嘗試而已。</p>
+<p><img alt=" txt2-pic16 的檔案尺寸 " src="/img/038.png"></p>                </article>
+            </aside><!-- /#featured -->
+                <section id="content" class="body">
+                    <h1>Other articles</h1>
+                    <hr />
+                    <ol id="posts-list" class="hfeed">
+
+            <li><article class="hentry">
+                <header>
+                    <h1><a href="/yi-chu-fu-shui-yin-de-fang-fa.html" rel="bookmark"
+                           title="Permalink to 移除浮水印的方法">移除浮水印的方法</a></h1>
+                </header>
+
+                <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2018-12-09T00:00:00+08:00">
+                Published: 日 09 十二月 2018
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="/author/loaxsc.html">loaxsc</a>
+        </address>
+<p>In <a href="/category/article.html">article</a>.</p>
+
+</footer><!-- /.post-info -->                <h1>移除 watermark</h1>
+<p>常常在讀電子書時見到頁面中有浮水印，在沒接觸 Imagemagick 前，只會移除那種淡淡的、單色，只要簡單地提高對比度或亮度就可以移除的浮水印</p>
+<p><img alt="簡單的浮水印" src="/img/021.png"></p>
+<p>如果說遇到比較複雜的圖案，就只能默默的接受。在研究使用 Imagemagick 時意外發現兩種移除浮水印的方法，相對簡單的調整對比和亮度而言，可以說是移除的非常漂亮。 第一種方法針對的是在固定位置的浮水印，如果你可以找到用來做浮水印的原始圖片，那固定位置的浮水印是可以漂亮的移除的。第二種方法針對的是彩色的浮水印。電子書內的圖片因為主要的內容是黑白的文字，所以如果遇到彩色的浮水印，知道方法的話也是有辨法移除的。</p>
+<h2>移除固定位置的浮水印</h2>
+<p>移除固定位置浮水印的原理是這樣的，先找到原始做為浮水印的圖案，這很容易，因為電子書中有些浮水印會打在空白處，找到該處把浮水印擷取下即可取得浮水印的原始圖案。擷取時記得把擷取的位置和尺寸記下來，然後就可以編寫 Imagemagick 的指令下去批次把浮水印移除掉。</p>
+<p>拿《數學之美》第一章為例，這本電子書的浮水印在固定位置，而且不是簡單的單色、淡色，無法在不破壞文字的前提下靠調整對比、亮度或曲線來移除它。</p>
+<p><img alt="數學之美的浮水印，雖然位置固定，但是圖案的結構複雜" src="/img/016.png"></p>
+<p>我們先找到空白處的浮水印，擷取並記錄 geometry 資訊。我是用 gimp 來做這個步驟，因為用滑鼠大致選取好範圍後，可以利用方向鍵對選取方塊進行微調選取的尺寸及位置 …</p>
+                <a class="readmore" href="/yi-chu-fu-shui-yin-de-fang-fa.html">read more</a>
+                </div><!-- /.entry-content -->
+            </article></li>
+
+            <li><article class="hentry">
+                <header>
+                    <h1><a href="/you-hua-pdf-de-dang-an-ti-ji.html" rel="bookmark"
+                           title="Permalink to 優化 PDF 的檔案體積">優化 PDF 的檔案體積</a></h1>
+                </header>
+
+                <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2018-12-09T00:00:00+08:00">
+                Published: 日 09 十二月 2018
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="/author/loaxsc.html">loaxsc</a>
+        </address>
+<p>In <a href="/category/article.html">article</a>.</p>
+
+</footer><!-- /.post-info -->                <h1>優化 PDF 的檔案體積</h1>
+<h2>為什麼想要研究這個問題</h2>
+<p>之前重新調整過頁面的排版後發現檔案的體積變大了，而且仔細看一下，可以發現有些頁面，文字變得比較模糊。重新檢查一下自己處理的步驟，原來是用 CEP 取內容時勾選了 deskew ，圖片的格式跑掉了。我想了一下，乾脆探索一下怎麼優化檔案體積，找出在盡可能保持頁面的視覺品質下縮減檔案體積的方法。</p>
+<p>如果是PNG格式的圖片，那影響檔案體積最重要的參數就是顏色的數量，先分析了一下原始檔，看看原製作者用的是怎麼樣校調的：</p>
+<p><img alt="原始檔使用的顏色數" src="/img/026.png"></p>
+<p>還真奇怪，因為畫面看起來不像是顏色豐富的感覺，我猜可能是浮水印的關係，把浮水印移除後再重新分析一次</p>
+<p><img alt="移除浮水印後，純文字部分使用的顏色數" src="/img/027.png"></p>
+<p>所以，原製作者他最終是把頁面處理成15色的圖檔，只是因為後來打上浮水印的關係使顏色數暴增，不過因為浮水印只佔一小區塊，所以即使顏色數變得混亂，檔案的體積倒是增加的不大。</p>
+<p>如果想進一步縮減檔案的體積，我想到兩個途徑，一個是把每頁文字的部分再進一部轉成 4 色而圖片保持 15 色；另一個途徑是把整張圖片轉成黑白的。</p>
+<h2>方法一：文字４色，插圖１５色</h2>
+<p>先把原始檔中有插圖的頁面找出來，將插圖的位置、大小資訊記錄在 page_with_pic.info 中，然後把插圖和文字分開。</p>
+<p>將文字和插圖分開的 …</p>
+                <a class="readmore" href="/you-hua-pdf-de-dang-an-ti-ji.html">read more</a>
+                </div><!-- /.entry-content -->
+            </article></li>
+
+            <li><article class="hentry">
+                <header>
+                    <h1><a href="/zhi-zuo-dian-zi-shu-de-liu-cheng.html" rel="bookmark"
+                           title="Permalink to 製作電子書的流程">製作電子書的流程</a></h1>
+                </header>
+
+                <div class="entry-content">
+<footer class="post-info">
+        <abbr class="published" title="2018-12-09T00:00:00+08:00">
+                Published: 日 09 十二月 2018
+        </abbr>
+
+        <address class="vcard author">
+                By                         <a class="url fn" href="/author/loaxsc.html">loaxsc</a>
+        </address>
+<p>In <a href="/category/article.html">article</a>.</p>
+
+</footer><!-- /.post-info -->                <h1>Title</h1>
+<h2>現實</h2>
+<p>我一直是有閱讀電子書的習慣，讀久了就會開始覺得有些電子書的排版和自己的閱讀習慣不是很合拍，譬如：</p>
+<p><img alt="內容不連貫的電子書" src="/img/002.png"></p>
+<p>這本書的頁面算是處理得非常好的，大部分的人閱讀起來應該不會有什麼怨言，可是我會希望自己在閱讀時能全神貫注在理解內容上，不希望自己的注意力被分散出去，可是注意到頁面中的內容是不連貫的，那種不連貫就讓我感到很不順眼。這種不連貫雖然很細微，但是會增加人在閱讀時負擔，當你全神貫注在理解內容時，你還必須耗費額外的心力來調整自己視線往返的範圍，而且因為我在做筆記時習慣直接把字打在頁面空白處，這種不一致的排版有時候會找不到地方放筆記，悶啊。</p>
+<p>我原本是用 CEP 來解決這個問題的，CEP就是 ComicEnhancer Pro，原本是作者寫來處理漫畫頁面的，經過時間的演進，慢慢變成很適合處理電子書版面的問題。經過一翻嘗試後我大致上是把版面安排成這樣</p>
+<p><img alt="用 CEP 修正過的版面" src="/img/004.png"></p>
+<p>這樣子的話內容是連貫下來的，而且右邊預留了足夠的空間可以做筆記</p>
+<p>大部分的時候我都很滿意這樣的效果，但還是會碰到一些解決不了的情況，譬如說有些書是有註解的，有註解也就算了，排版還分左右頁，左右頁的註解還不同邊</p>
+<p><img alt="註解在左右邊界的電子書" src="/img/005.png"></p>
+<p>還有時會遇到內容只有一點點，整個頁面留了一片空白</p>
+<p><img alt="留有大段空白的頁面" src="/img/003.png"></p>
+<p>你會覺得那不是必要的，可是用 CEP 並不好處理，雖然不是不能處理，但要採取非常多步驟，非常費工。CEP 是圖形介面的軟體，它有些功能藏在介面的深處，當你需要用到時，常常讓人覺得我只是要做個小處理 …</p>
+                <a class="readmore" href="/zhi-zuo-dian-zi-shu-de-liu-cheng.html">read more</a>
+                </div><!-- /.entry-content -->
+            </article></li>
+                </ol><!-- /#posts-list -->
+                </section><!-- /#content -->
+        <section id="extras" class="body">
+                <div class="blogroll">
+                        <h2>links</h2>
+                        <ul>
+                            <li><a href="http://getpelican.com/">Pelican</a></li>
+                            <li><a href="http://python.org/">Python.org</a></li>
+                            <li><a href="http://jinja.pocoo.org/">Jinja2</a></li>
+                            <li><a href="#">You can modify those links in your config file</a></li>
+                        </ul>
+                </div><!-- /.blogroll -->
+                <div class="social">
+                        <h2>social</h2>
+                        <ul>
+                            <li><a href="/feeds/all.atom.xml" type="application/atom+xml" rel="alternate">atom feed</a></li>
+
+                            <li><a href="#">You can add links in your config file</a></li>
+                            <li><a href="#">Another social link</a></li>
+                        </ul>
+                </div><!-- /.social -->
+        </section><!-- /#extras -->
+
+        <footer id="contentinfo" class="body">
+                <address id="about" class="vcard body">
+                Proudly powered by <a href="http://getpelican.com/">Pelican</a>, which takes great advantage of <a href="http://python.org">Python</a>.
+                </address><!-- /#about -->
+
+                <p>The theme is by <a href="http://coding.smashingmagazine.com/2009/08/04/designing-a-html-5-layout-from-scratch/">Smashing Magazine</a>, thanks!</p>
+        </footer><!-- /#contentinfo -->
+
+</body>
+</html>
